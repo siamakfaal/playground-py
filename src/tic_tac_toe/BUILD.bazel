@@ -1,0 +1,19 @@
+# src/tic_tac_toe/BUILD.bazel
+load("@python_deps//:requirements.bzl", "requirement")
+
+py_binary(
+    name = "tic_tac_toe",
+    srcs = ["main.py",
+            "game.py",
+            "player.py",
+            "utils.py"
+            ],
+    main = "main.py",
+    imports = [".."],
+    deps = [
+        requirement("numpy"),
+        requirement("rich"),
+    ],
+    visibility = ["//visibility:public"],
+    legacy_create_init = False,
+)
