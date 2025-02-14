@@ -1,0 +1,17 @@
+# src/pegboard/BUILD.bazel
+load("@python_deps//:requirements.bzl", "requirement")
+
+py_binary(
+    name = "pegboard",
+    srcs = ["main.py",
+            "pegboard.py",
+            ],
+    main = "main.py",
+    imports = [".."],
+    deps = [
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+    visibility = ["//visibility:public"],
+    legacy_create_init = False,
+)
