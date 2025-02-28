@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Tuple
 
 import numpy as np
 from rich.style import Style
@@ -37,6 +38,15 @@ class Play:
     row: int
     column: int
     symbol: Symbol
+    terminate: bool = False
+
+
+@dataclass
+class BoardSums:
+    row: np.ndarray
+    col: np.ndarray
+    main_diag: int
+    sec_diag: int
 
 
 def create_board(board_size: int) -> np.ndarray:
@@ -44,7 +54,16 @@ def create_board(board_size: int) -> np.ndarray:
     return np.zeros((board_size, board_size), dtype=int)
 
 
-def game_state(board: np.ndarray) -> Outcome:
+def calculate_board_sums(board: np.ndarray) -> BoardSums:
+    return BoardSums(
+        np.sum(board, axis=1),
+        np.sum(board, axis=0),
+        np.sum(np.diag(board)),
+        np.sum(np.diag(np.fliplr(board))),
+    )
+
+
+def game_state(board: np.ndarray) -> Tuple[Outcome, BoardSums]:
     max_sum = board.shape[0]  # Winning sum
 
     def check_winner(sums):
@@ -54,28 +73,22 @@ def game_state(board: np.ndarray) -> Outcome:
             return Outcome.X_WINS
         return None
 
-    # Check rows and columns
-    row_sums = np.sum(board, axis=1)
-    col_sums = np.sum(board, axis=0)
+    board_sums = calculate_board_sums(board)
 
-    for sums in [row_sums, col_sums]:
+    for sums in [board_sums.row, board_sums.col]:
         winner = check_winner(sums)
         if winner:
-            return winner
+            return (winner, board_sums)
 
-    # Check diagonals
-    main_diag_sum = np.sum(np.diag(board))
-    sec_diag_sum = np.sum(np.diag(np.fliplr(board)))
-
-    for diag_sum in [main_diag_sum, sec_diag_sum]:
+    for diag_sum in [board_sums.main_diag, board_sums.sec_diag]:
         if diag_sum == max_sum:
-            return Outcome.O_WINS
+            return (Outcome.O_WINS, board_sums)
         if diag_sum == -max_sum:
-            return Outcome.X_WINS
+            return (Outcome.X_WINS, board_sums)
 
     # Check for ongoing game
     if 0 in board:
-        return Outcome.ONGOING
+        return (Outcome.ONGOING, board_sums)
 
     # Otherwise, it's a tie
-    return Outcome.TIE
+    return (Outcome.TIE, board_sums)

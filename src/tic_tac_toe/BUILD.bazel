@@ -13,6 +13,7 @@ py_binary(
     deps = [
         requirement("numpy"),
         requirement("rich"),
+        requirement("ipdb"),
     ],
     visibility = ["//visibility:public"],
     legacy_create_init = False,
