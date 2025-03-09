@@ -1,26 +1,30 @@
-import numpy as np
-from numpy import random
-import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import List, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy import random
+
 
 @dataclass
 class GraphicHandles:
     figure: plt.Figure
     axes: List[plt.Axes]
-    bars: List[plt.Rectangle]  
+    bars: List[plt.Rectangle]
     marble: plt.Line2D
+
 
 class Pegboard:
     """
     Pegboard simulates marbles dropping on a triangular pegboard.
-                  o 
+                  o
                o     o
-               ...           
+               ...
          o   o   ...       o
        o   o   o         o   o
       [ ] [ ] [ ]  ...  [ ] [ ]
     """
+
     def __init__(self, bin_size: int = 10):
         self.bin_size = bin_size
         self.height = bin_size - 1
@@ -28,14 +32,14 @@ class Pegboard:
         self.animate = False
 
     def simulate(self, iter: int = 100, animate: bool = False) -> list:
-        
+
         if animate:
             handles = self._create_plot_env(iter)
             handles.marble.set_visible(True)
             plt.show()
         else:
             handles = None
-        
+
         for _ in range(iter):
             self._drop(self.height / 2, self.height, handles)
 
@@ -48,7 +52,7 @@ class Pegboard:
             handles.marble.set_data([horizontal_pos], [vertical_pos])
             handles.figure.canvas.draw()
             handles.figure.canvas.flush_events()
-        
+
         if vertical_pos > 0:
             direction = random.choice([-0.5, 0.5])
             self._drop(horizontal_pos + direction, vertical_pos - 1, handles)
@@ -81,7 +85,7 @@ class Pegboard:
         fig, ax = plt.subplots(2, 1)
 
         ax[0].scatter(x, y)
-        marble, = ax[0].plot(0, 0, marker='o', color='red', markersize=10)
+        (marble,) = ax[0].plot(0, 0, marker="o", color="red", markersize=10)
 
         ax[0].set_xlim((-1 / 2, self.bin_size - 1 / 2))
         ax[1].set_xlim((-1 / 2, self.bin_size - 1 / 2))

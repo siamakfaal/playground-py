@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict
 
 import numpy as np
 
@@ -89,31 +90,26 @@ class HumanPlayer(Player):
                 )
 
 
-class ArtificialPlayer(Player):
-    def __init__(self, symbol: Symbol, strategy: Strategy = Strategy.INF_HORIZON):
+class OutcomeOverHorizon(Player):
+    def __init__(self, symbol: Symbol, horizon: int = None):
         """Initialize a AI player with a symbol (X or O)."""
         super().__init__(symbol)
-        self.strategy = strategy
+        self.visited_states: Dict[tuple, OutcomeCount] = {}
+        self.horizon = horizon
 
     def play(self, board: np.ndarray) -> Play:
 
-        if self.strategy == Strategy.INF_HORIZON:
-            return self.infinite_horizon_search(board)
-
-    def infinite_horizon_search(self, board: np.ndarray) -> Play:
-        horizon = board.shape[0]
-        horizon = 100
-        outcome_count = self._n_next_moves(board, horizon)
+        outcome_count = self._n_next_moves(board)
 
         best_move = None
-        best_move_score = None
+        best_move_score = -float("inf")
         for move, count in outcome_count.items():
             wins = count.player(self.symbol)
             losses = count.opponent(self.symbol)
             ties = count.Tie
             score = wins - losses
             print(f"move: {move:2}, wins: {wins:4}, losses: {losses:4}, score: {score:4}")
-            if not best_move_score or score > best_move_score:
+            if score > best_move_score:
                 best_move_score = score
                 best_move = move
 
@@ -122,14 +118,23 @@ class ArtificialPlayer(Player):
         row, col = np.unravel_index(best_move, board.shape)
         return Play(row, col, self.symbol)
 
-    def _n_next_moves(self, board: np.ndarray, horizon: int):
+    def _n_next_moves(self, board: np.ndarray):
+        horizon = self.horizon if self.horizon else board.shape[0]
+
+        print(f"visited size before search: {len(self.visited_states)}")
 
         next_move_outcomes_for_horizon = {}
         for move in possible_moves(board):
             temp_board = board.copy()
             temp_board[np.unravel_index(move, board.shape)] = self.symbol.value
-            next_move_outcomes_for_horizon[move] = dfs(-self.symbol.value, temp_board, 1, horizon)
+            if board_to_key(temp_board) in self.visited_states:
+                next_move_outcomes_for_horizon[move] = self.visited_states[board_to_key(temp_board)]
+            else:
+                next_move_outcomes_for_horizon[move] = dfs(
+                    -self.symbol.value, temp_board, 1, horizon, self.visited_states
+                )
 
+        print(f"visited size after search: {len(self.visited_states)}")
         return next_move_outcomes_for_horizon
 
 
@@ -137,19 +142,33 @@ def possible_moves(board: np.ndarray) -> list:
     return [idx for idx in range(board.size) if board[np.unravel_index(idx, board.shape)] == 0]
 
 
-def dfs(current_player: int, board: np.ndarray, depth: int, max_depth: int) -> OutcomeCount:
+def board_to_key(board: np.ndarray) -> tuple:
+    return tuple(board.flatten())
+
+
+def dfs(
+    current_player: int,
+    board: np.ndarray,
+    depth: int,
+    max_depth: int,
+    visited_states: Dict[tuple, OutcomeCount],
+) -> OutcomeCount:
     if depth > max_depth:
         return OutcomeCount()
 
     depth_outcome, _ = game_state(board)
 
     if depth_outcome != Outcome.ONGOING:
-        return OutcomeCount.from_outcome(depth_outcome)
+        count = OutcomeCount.from_outcome(depth_outcome)
+        visited_states[board_to_key(board)] = count
+        return count
 
     outcome_count = OutcomeCount()
     for move in possible_moves(board):
         new_board = board.copy()
         new_board[np.unravel_index(move, board.shape)] = current_player
-        outcome_count += dfs(-current_player, new_board, depth + 1, max_depth)
+        new_outcome = dfs(-current_player, new_board, depth + 1, max_depth, visited_states)
+        outcome_count += new_outcome
 
+    visited_states[board_to_key(board)] = outcome_count
     return outcome_count
