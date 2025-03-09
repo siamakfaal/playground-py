@@ -4,7 +4,7 @@ from typing import Dict
 
 import numpy as np
 
-from tic_tac_toe.utils import Outcome, Play, Symbol, game_state
+from tic_tac_toe.utils import Outcome, Play, Symbol, game_state, possible_moves
 
 
 class Strategy(Enum):
@@ -90,6 +90,58 @@ class HumanPlayer(Player):
                 )
 
 
+class MinMax(Player):
+    @dataclass
+    class BestMove:
+        score: int | float = 0
+        move: tuple = None
+
+    def __init__(self, symbol: Symbol, max_depth: int = None):
+        super().__init__(symbol)
+        self.max_depth: int = max_depth
+
+    def play(self, board: np.ndarray) -> Play:
+        max_depth = self.max_depth if self.max_depth else np.prod(board.shape)
+        minmax_move = self._minimax(board, max_depth, self.symbol)
+
+        return Play(
+            row=minmax_move.move[0], column=minmax_move.move[1], symbol=self.symbol, terminate=False
+        )
+
+    def _minimax(self, board: np.ndarray, depth: int, current_symbol: Symbol) -> BestMove:
+        current_state, _ = game_state(board)
+
+        if current_state == Outcome.O_WINS:
+            return self.BestMove(score=1)
+        elif current_state == Outcome.X_WINS:
+            return self.BestMove(score=-1)
+        elif current_state == Outcome.TIE or depth == 0:
+            return self.BestMove(score=0)
+
+        best_move = self.BestMove(
+            score=float("-inf") if current_symbol == Symbol.O else float("inf")
+        )
+
+        for move in possible_moves(board):
+            board[move] = current_symbol.value  # Make move for the current player
+            score = self._minimax(board, depth - 1, self._next_symbol(current_symbol)).score
+            board[move] = 0  # Undo move
+
+            if self._compare(score, best_move.score, current_symbol):
+                best_move.score = score
+                best_move.move = move
+
+        return best_move
+
+    @staticmethod
+    def _next_symbol(symbol: Symbol) -> Symbol:
+        return Symbol.X if symbol == Symbol.O else Symbol.O
+
+    @staticmethod
+    def _compare(new_score: float, previous_score: float, symbol: Symbol) -> bool:
+        return new_score > previous_score if symbol == Symbol.O else new_score < previous_score
+
+
 class OutcomeOverHorizon(Player):
     def __init__(self, symbol: Symbol, horizon: int = None):
         """Initialize a AI player with a symbol (X or O)."""
@@ -106,17 +158,14 @@ class OutcomeOverHorizon(Player):
         for move, count in outcome_count.items():
             wins = count.player(self.symbol)
             losses = count.opponent(self.symbol)
-            ties = count.Tie
             score = wins - losses
-            print(f"move: {move:2}, wins: {wins:4}, losses: {losses:4}, score: {score:4}")
+            print(f"move: {move}, wins: {wins:4}, losses: {losses:4}, score: {score:4}")
             if score > best_move_score:
                 best_move_score = score
                 best_move = move
 
         print(f"Selected best move is {best_move}")
-
-        row, col = np.unravel_index(best_move, board.shape)
-        return Play(row, col, self.symbol)
+        return Play(best_move[0], best_move[1], self.symbol)
 
     def _n_next_moves(self, board: np.ndarray):
         horizon = self.horizon if self.horizon else board.shape[0]
@@ -126,49 +175,48 @@ class OutcomeOverHorizon(Player):
         next_move_outcomes_for_horizon = {}
         for move in possible_moves(board):
             temp_board = board.copy()
-            temp_board[np.unravel_index(move, board.shape)] = self.symbol.value
-            if board_to_key(temp_board) in self.visited_states:
-                next_move_outcomes_for_horizon[move] = self.visited_states[board_to_key(temp_board)]
+            temp_board[move] = self.symbol.value
+            if self._board_to_key(temp_board) in self.visited_states:
+                next_move_outcomes_for_horizon[move] = self.visited_states[
+                    self._board_to_key(temp_board)
+                ]
             else:
-                next_move_outcomes_for_horizon[move] = dfs(
+                next_move_outcomes_for_horizon[move] = self._dfs(
                     -self.symbol.value, temp_board, 1, horizon, self.visited_states
                 )
 
         print(f"visited size after search: {len(self.visited_states)}")
         return next_move_outcomes_for_horizon
 
+    def _dfs(
+        self,
+        current_player: int,
+        board: np.ndarray,
+        depth: int,
+        max_depth: int,
+        visited_states: Dict[tuple, OutcomeCount],
+    ) -> OutcomeCount:
+        if depth > max_depth:
+            return OutcomeCount()
 
-def possible_moves(board: np.ndarray) -> list:
-    return [idx for idx in range(board.size) if board[np.unravel_index(idx, board.shape)] == 0]
+        depth_outcome, _ = game_state(board)
 
+        if depth_outcome != Outcome.ONGOING:
+            count = OutcomeCount.from_outcome(depth_outcome)
+            visited_states[self._board_to_key(board)] = count
+            return count
 
-def board_to_key(board: np.ndarray) -> tuple:
-    return tuple(board.flatten())
+        outcome_count = OutcomeCount()
+        for move in possible_moves(board):
+            new_board = board.copy()
+            new_board[move] = current_player
+            outcome_count += self._dfs(
+                -current_player, new_board, depth + 1, max_depth, visited_states
+            )
 
+        visited_states[self._board_to_key(board)] = outcome_count
+        return outcome_count
 
-def dfs(
-    current_player: int,
-    board: np.ndarray,
-    depth: int,
-    max_depth: int,
-    visited_states: Dict[tuple, OutcomeCount],
-) -> OutcomeCount:
-    if depth > max_depth:
-        return OutcomeCount()
-
-    depth_outcome, _ = game_state(board)
-
-    if depth_outcome != Outcome.ONGOING:
-        count = OutcomeCount.from_outcome(depth_outcome)
-        visited_states[board_to_key(board)] = count
-        return count
-
-    outcome_count = OutcomeCount()
-    for move in possible_moves(board):
-        new_board = board.copy()
-        new_board[np.unravel_index(move, board.shape)] = current_player
-        new_outcome = dfs(-current_player, new_board, depth + 1, max_depth, visited_states)
-        outcome_count += new_outcome
-
-    visited_states[board_to_key(board)] = outcome_count
-    return outcome_count
+    @staticmethod
+    def _board_to_key(board: np.ndarray) -> tuple:
+        return tuple(board.flatten())

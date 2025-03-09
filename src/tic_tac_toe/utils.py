@@ -63,6 +63,14 @@ def calculate_board_sums(board: np.ndarray) -> BoardSums:
     )
 
 
+def possible_moves(board: np.ndarray) -> list:
+    return [
+        np.unravel_index(idx, board.shape)
+        for idx in range(board.size)
+        if board[np.unravel_index(idx, board.shape)] == 0
+    ]
+
+
 def game_state(board: np.ndarray) -> Tuple[Outcome, BoardSums]:
     max_sum = board.shape[0]  # Winning sum
 
